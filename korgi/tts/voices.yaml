@@ -1,0 +1,15 @@
+# Default voice IDs per provider and language.
+# Override at runtime via `korgi tts --voice <id>`.
+# ElevenLabs voice IDs: find yours at https://api.elevenlabs.io/v1/voices
+
+elevenlabs:
+  ja: "lhTvHflPVOqgSWyuWQry"   # Hina
+  en: "21m00Tcm4TlvDq8ikWAM"   # Rachel (placeholder)
+
+moss:
+  ja: ""   # Path to a reference .wav for voice cloning, or "" for default voice
+  en: ""
+
+stub:
+  ja: ""
+  en: ""

@@ -32,3 +32,13 @@ live2d_expression_map:
   sad: Sad
   angry: Angry
   serious: Default
+live2d:
+  model_path: /live2d/hiyori/Hiyori.model3.json
+  scale: 0.25
+  x_offset: 0
+  y_offset: 0
+  lip_sync:
+    sensitivity: 2.0
+    smoothing: 0.15
+    min_threshold: 0.01
+    use_mouth_form: true

@@ -15,6 +15,8 @@ import re
 import wave
 from pathlib import Path
 
+from ..slides.timing import estimate_cues, write_slides_json
+from ..speech.schema import SLIDE_TAG_RE, strip_slide_tags
 from .base import Lang, SynthResult, TimingEntry
 from .registry import register
 from .tag_translate import to_moss
@@ -40,13 +42,15 @@ class MOSSTTSNanoAdapter:
                 "moss-tts-nano not installed. Run: pip install 'korgi[moss]'"
             ) from e
 
-        plain = to_moss(text_with_tags)
+        cued_speech = text_with_tags
+        plain = strip_slide_tags(to_moss(text_with_tags))
         sentences = [s.strip() for s in _SENT_SPLIT.split(plain) if s.strip()]
 
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         audio_path = out_dir / "full.wav"
         timing_path = out_dir / "timing.json"
+        slides_json_path = out_dir / "slides.json"
 
         model = MossTTSNano()
         all_pcm: list[bytes] = []
@@ -78,6 +82,8 @@ class MOSSTTSNanoAdapter:
             json.dumps([vars(e) for e in entries], ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        if SLIDE_TAG_RE.search(cued_speech):
+            write_slides_json(estimate_cues(cued_speech, cursor_ms), slides_json_path)
         return SynthResult(
             audio_path=audio_path,
             timing_path=timing_path,

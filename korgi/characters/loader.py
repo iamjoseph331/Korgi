@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from .schema import CharacterProfile, SpeechStyle
+from .schema import CharacterProfile, LipSyncSettings, Live2DSettings, SpeechStyle
 
 CHAR_DIR = Path(__file__).parent
 
@@ -23,6 +23,24 @@ def load(name_or_path: str) -> CharacterProfile:
 
     data = yaml.safe_load(candidate.read_text(encoding="utf-8"))
     ss = data.get("speech_style", {})
+
+    l2d_raw = data.get("live2d", {}) or {}
+    ls_raw = l2d_raw.get("lip_sync", {}) or {}
+    defaults = Live2DSettings()
+    default_ls = defaults.lip_sync
+    live2d = Live2DSettings(
+        model_path=l2d_raw.get("model_path", defaults.model_path),
+        scale=float(l2d_raw.get("scale", defaults.scale)),
+        x_offset=float(l2d_raw.get("x_offset", defaults.x_offset)),
+        y_offset=float(l2d_raw.get("y_offset", defaults.y_offset)),
+        lip_sync=LipSyncSettings(
+            sensitivity=float(ls_raw.get("sensitivity", default_ls.sensitivity)),
+            smoothing=float(ls_raw.get("smoothing", default_ls.smoothing)),
+            min_threshold=float(ls_raw.get("min_threshold", default_ls.min_threshold)),
+            use_mouth_form=bool(ls_raw.get("use_mouth_form", default_ls.use_mouth_form)),
+        ),
+    )
+
     return CharacterProfile(
         name=data["name"],
         lang=data["lang"],
@@ -39,4 +57,5 @@ def load(name_or_path: str) -> CharacterProfile:
         catchphrases=tuple(data.get("catchphrases", []) or []),
         tag_bias=dict(data.get("tag_bias", {}) or {}),
         live2d_expression_map=dict(data.get("live2d_expression_map", {}) or {}),
+        live2d=live2d,
     )

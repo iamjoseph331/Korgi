@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>korgi</title>
+    <link rel="icon" href="data:," />
+    <!-- Live2D Cubism 4 core runtime (required by pixi-live2d-display/cubism4
+         before any .moc3 model is parsed). -->
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <style>
+      :root {
+        --bg: #fafaf7;
+        --fg: #1f2430;
+        --muted: #6b7280;
+        --line: #e5e7eb;
+        --accent: #2a6f6b;
+        --accent-soft: #e6f2f1;
+        --warn: #b45309;
+        --err: #b91c1c;
+        --ok: #047857;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      }
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: "Hiragino Sans", "Noto Sans JP", system-ui, -apple-system, sans-serif;
+        font-feature-settings: "palt" 1;
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        padding: 14px 24px;
+        border-bottom: 1px solid var(--line);
+        background: #fff;
+      }
+      header h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: 0.02em; }
+      header .dot { color: var(--accent); }
+      header #status { margin-left: auto; font-size: 12px; color: var(--muted); }
+
+      main { max-width: 780px; margin: 0 auto; padding: 32px 24px 64px; }
+      section[hidden] { display: none; }
+
+      /* ── setup ───────────────────────────── */
+      .setup h2 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+      .setup .sub { color: var(--muted); margin: 0 0 28px; }
+
+      .drop {
+        border: 1.5px dashed var(--line);
+        border-radius: 10px;
+        padding: 36px 20px;
+        text-align: center;
+        background: #fff;
+        transition: border-color 120ms, background 120ms;
+        cursor: pointer;
+      }
+      .drop.drag { border-color: var(--accent); background: var(--accent-soft); }
+      .drop .big { font-size: 15px; font-weight: 500; }
+      .drop .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
+      .drop.picked { border-color: var(--accent); background: #fff; text-align: left; padding: 20px; }
+      .drop.picked .fname { font-family: var(--mono); font-size: 13px; color: var(--fg); }
+      .drop.picked .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+        margin-top: 22px;
+      }
+      .grid label {
+        display: flex; flex-direction: column; gap: 6px;
+        font-size: 13px; color: var(--muted);
+      }
+      .grid input, .grid select {
+        font: inherit;
+        padding: 9px 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--fg);
+      }
+      .grid input:focus, .grid select:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: -1px;
+        border-color: var(--accent);
+      }
+      .grid .full { grid-column: 1 / -1; }
+      .grid textarea {
+        font: inherit; font-family: var(--mono); font-size: 12px;
+        padding: 9px 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--fg);
+        resize: vertical;
+        line-height: 1.5;
+      }
+      .grid textarea:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: -1px;
+        border-color: var(--accent);
+      }
+      .slider-row { display: flex; align-items: center; gap: 10px; }
+      .slider-row input[type=range] { flex: 1; accent-color: var(--accent); }
+      .slider-row .val { font-family: var(--mono); font-size: 12px; min-width: 44px; text-align: right; color: var(--fg); }
+      .notice { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+      .actions { display: flex; gap: 10px; margin-top: 24px; align-items: center; }
+      button.primary {
+        font: inherit; font-weight: 500;
+        padding: 10px 18px;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      button.primary:hover { background: #225b57; }
+      button.primary:disabled { background: #9aa0a6; cursor: not-allowed; }
+
+      .advanced { margin-top: 20px; }
+      .advanced summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+      .advanced .checks { margin-top: 10px; display: flex; gap: 18px; font-size: 13px; }
+      .advanced .checks label { display: flex; align-items: center; gap: 6px; color: var(--fg); }
+
+      .err-box { margin-top: 14px; padding: 10px 12px; background: #fef2f2; border: 1px solid #fecaca; color: var(--err); border-radius: 6px; font-size: 13px; }
+
+      /* ── progress ────────────────────────── */
+      .progress h2 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+      .progress .sub { color: var(--muted); margin: 0 0 20px; font-family: var(--mono); font-size: 12px; }
+      .stages { display: flex; flex-direction: column; gap: 8px; margin: 0 0 20px; }
+      .stage {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 14px;
+        border: 1px solid var(--line); border-radius: 8px;
+        background: #fff;
+        font-size: 14px;
+      }
+      .stage .pill {
+        width: 16px; height: 16px; border-radius: 50%;
+        border: 2px solid var(--line); background: #fff;
+        flex-shrink: 0;
+      }
+      .stage .stage-gif {
+        width: 32px; height: 32px; object-fit: contain;
+        margin-right: 4px; border-radius: 4px;
+      }
+      .stage.active .pill { border-color: var(--accent); background: var(--accent-soft); }
+      .stage.active .pill::after {
+        content: ""; display: block; width: 6px; height: 6px; border-radius: 50%;
+        background: var(--accent); margin: 3px;
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+      .stage.done .pill { border-color: var(--ok); background: var(--ok); }
+      .stage.done .pill::after {
+        content: "✓"; display: block; color: #fff; font-size: 11px; line-height: 12px;
+        margin: 0; width: auto; height: auto; background: none; animation: none;
+        text-align: center;
+      }
+      .stage.err .pill { border-color: var(--err); background: var(--err); }
+      .stage .label { flex: 1; }
+      .stage .when { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+      .log {
+        background: #111418; color: #d0d6de;
+        border-radius: 8px;
+        padding: 12px 14px;
+        font-family: var(--mono); font-size: 12px;
+        max-height: 300px; overflow-y: auto;
+        white-space: pre-wrap; word-break: break-word;
+      }
+      .log .line { margin: 0; line-height: 1.55; }
+      .log .line.warn { color: #f59e0b; }
+      .log .line.err { color: #fca5a5; }
+      .log .line.done { color: #6ee7b7; }
+
+      /* ── player ──────────────────────────── */
+      .player { position: fixed; inset: 0; top: 53px; background: #141922; color: #e8ecf1; }
+      .player #app {
+        display: grid; grid-template-columns: minmax(320px, 45%) 1fr;
+        height: 100%;
+      }
+      .player #stage { position: relative; }
+      .player #live2d-canvas { width: 100%; height: 100%; display: block; }
+      .player #zoom-wrap {
+        position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+        display: flex; flex-direction: column; align-items: center; gap: 8px;
+        padding: 10px 6px; border-radius: 8px;
+        background: rgba(20, 25, 34, 0.55); backdrop-filter: blur(4px);
+        font-size: 11px; color: #e8ecf1;
+      }
+      .player #zoom-slider {
+        -webkit-appearance: slider-vertical;
+        appearance: slider-vertical;
+        writing-mode: vertical-lr; direction: rtl;
+        width: 22px; height: 180px;
+        accent-color: var(--accent);
+      }
+      .player #panel { display: flex; flex-direction: column; border-left: 1px solid #2a3242; }
+      .player #slide { flex: 1; padding: 24px; overflow: auto; background: #fff; color: #111; }
+      .player #slide h1, .player #slide h2 { margin-top: 0; }
+      .player #controls {
+        padding: 12px 16px; border-top: 1px solid #2a3242;
+        display: flex; gap: 12px; align-items: center; background: #1a2130;
+      }
+      .player audio { flex: 1; }
+      .player #player-status { font-size: 12px; opacity: 0.7; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1><span class="dot">●</span> korgi</h1>
+      <span id="status"></span>
+    </header>
+    <main>
+      <!-- ── setup ────────────────────────────── -->
+      <section id="view-setup" class="setup" hidden>
+        <h2>新しいレクチャーを作成</h2>
+        <p class="sub">PDF をアップロードすると、レジュメ生成 → スピーチ → スライド → 音声合成まで一気通貫で進みます。</p>
+
+        <div id="drop" class="drop" tabindex="0" role="button">
+          <div class="big">PDF をここにドロップ <span style="color:var(--muted)">または</span> クリックして選択</div>
+          <div class="hint">.pdf only — 論文一本（数MB〜数十MB）</div>
+          <input id="file" type="file" accept="application/pdf" hidden />
+        </div>
+
+        <div class="grid">
+          <label>言語
+            <select id="lang">
+              <option value="ja" selected>日本語</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <label>目安の長さ（分）
+            <input id="minutes" type="number" min="5" max="120" value="30" />
+          </label>
+          <label>キャラクター
+            <select id="character"></select>
+          </label>
+          <label>TTS プロバイダ
+            <select id="provider"></select>
+          </label>
+          <label class="full">Voice ID / reference .wav <span style="font-size:11px">（空欄で各プロバイダのデフォルト）</span>
+            <input id="voice" type="text" placeholder="(default)" />
+          </label>
+          <label>ピッチ <span class="slider-row"><input id="pitch" type="range" min="-6" max="6" step="1" value="0" /><span class="val" id="pitch-val">0</span></span></label>
+          <label>話速 <span class="slider-row"><input id="speed" type="range" min="0.8" max="1.3" step="0.05" value="1.0" /><span class="val" id="speed-val">1.00×</span></span></label>
+          <div class="full notice">※ ピッチ / 話速は現在 ElevenLabs のみ対応です（他プロバイダでは無視されます）。ピッチは SDK 制約により ±6 半音の目安で内部設定に反映します。</div>
+          <label class="full">
+            <details>
+              <summary style="cursor:pointer;color:var(--muted)">キャラクターを編集（上級者向け — YAML 直接編集）</summary>
+              <textarea id="character-yaml" rows="14" style="width:100%;margin-top:8px" placeholder="キャラクターを選択すると読み込まれます"></textarea>
+              <div class="notice">編集内容はこの実行のみで使用されます（元ファイルは変更されません）。</div>
+            </details>
+          </label>
+        </div>
+
+        <details class="advanced">
+          <summary>Advanced</summary>
+          <div class="checks">
+            <label><input id="skip_factcheck" type="checkbox" /> fact-check をスキップ（高速）</label>
+            <label><input id="slides" type="checkbox" checked /> Marp スライドを生成</label>
+          </div>
+        </details>
+
+        <div class="actions">
+          <button id="go" class="primary" disabled>生成を開始</button>
+          <span id="setup-status" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <div id="setup-err" class="err-box" hidden></div>
+      </section>
+
+      <!-- ── progress ─────────────────────────── -->
+      <section id="view-progress" class="progress" hidden>
+        <h2>パイプライン実行中…</h2>
+        <p class="sub" id="progress-runid"></p>
+        <div id="stages" class="stages"></div>
+        <div id="log" class="log" aria-live="polite"></div>
+      </section>
+
+      <!-- ── player ───────────────────────────── -->
+      <section id="view-player" class="player" hidden>
+        <div id="app">
+          <div id="stage">
+            <canvas id="live2d-canvas"></canvas>
+            <div id="zoom-wrap" title="ズーム">
+              <span>＋</span>
+              <input id="zoom-slider" type="range" min="1" max="2.5" step="0.05" value="1" />
+              <span>−</span>
+            </div>
+          </div>
+          <div id="panel">
+            <div id="slide">Loading…</div>
+            <div id="controls">
+              <audio id="audio" controls crossorigin="anonymous"></audio>
+              <span id="player-status"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

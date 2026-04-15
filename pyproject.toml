@@ -19,6 +19,7 @@ dependencies = [
 [project.optional-dependencies]
 elevenlabs = ["elevenlabs>=1.0"]
 moss = ["moss-tts-nano"]
+web = ["fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9"]
 dev = ["pytest>=8", "pytest-mock>=3"]
 
 [project.scripts]

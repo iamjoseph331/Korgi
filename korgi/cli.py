@@ -149,50 +149,97 @@ def pipeline(
     voice: Annotated[str, typer.Option(help="Voice ID / reference wav")] = "",
     out: Annotated[Path, typer.Option(help="Output root directory")] = Path("out"),
     skip_factcheck: Annotated[bool, typer.Option(help="Skip Stage 2b fact-check (faster)")] = False,
+    slides: Annotated[bool, typer.Option("--slides/--no-slides", help="Generate Marp slides")] = True,
 ) -> None:
-    """Run the full Stage 1 + 2 pipeline end-to-end."""
+    """Run the full Stage 1 + 2 (+ optional Stage 4 slides) pipeline end-to-end."""
     _require_lang(lang)
-    typer.echo("[korgi] === Stage 1: レジュメ ===")
-    ctx = typer.get_current_context()
+    from .pipeline import run_pipeline
+
+    def _print(kind: str, message: str, payload: dict | None = None) -> None:
+        prefix = {"stage": "===", "error": "!!!", "warn": "⚠", "done": "✓"}.get(kind, "·")
+        typer.echo(f"[korgi] {prefix} {message}")
+
+    run_pipeline(
+        paper=paper,
+        lang=lang,
+        minutes=minutes,
+        character=character,
+        provider=provider,
+        voice=voice,
+        out=out,
+        skip_factcheck=skip_factcheck,
+        slides=slides,
+        on_event=_print,
+    )
+
+
+@app.command()
+def slides(
+    speech_md: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True,
+                                               metavar="SPEECH_MD")],
+    resume_md: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True,
+                                             help="Resume markdown for slide context")] = None,  # type: ignore[assignment]
+    lang: Annotated[str, typer.Option(help="ja or en")] = "ja",
+    character: Annotated[str, typer.Option(help="Character name or path to .yaml")] = "",
+    out: Annotated[Path, typer.Option(help="Run dir (slides/ written here)")] = Path("out"),
+) -> None:
+    """Stage 4: inject slide cues and generate Marp slides from a speech.md."""
+    _require_lang(lang)
 
     from .characters import loader as char_loader
-    from .speech import draft, fact_check as speech_fc, tags
-    from .tts import registry
+    from .speech import slide_cues
+    from .slides import generator as slides_gen, render as slides_render
 
     char_name = character or f"default_{lang}"
     char = char_loader.load(char_name)
-    run = prepare(out, paper)
-    typer.echo(f"[korgi] run dir: {run}")
 
-    # Stage 1
-    paper_md_path = to_markdown.convert(paper, run)
-    paper_md = paper_md_path.read_text(encoding="utf-8")
+    tagged = speech_md.read_text(encoding="utf-8")
+    resume_text = resume_md.read_text(encoding="utf-8") if resume_md else ""
 
-    resume_md = resume_generator.generate(paper_md, lang, minutes)  # type: ignore[arg-type]
-    (run / "resume.md").write_text(resume_md, encoding="utf-8")
-    flags = resume_fact_check.verify(resume_md, paper_md)
-    (run / "resume.flags.json").write_text(resume_fact_check.dump_flags(flags), encoding="utf-8")
-    typer.echo(f"[korgi] resume.md  ({len(resume_md):,} chars)  flags={len(flags)}")
+    typer.echo("[korgi] 2e: injecting [slide:next] cues…")
+    cued = slide_cues.inject(tagged, char)
+    # Re-write speech.md with cues so the TTS adapter can pick them up.
+    speech_md.write_text(cued, encoding="utf-8")
 
-    # Stage 2
-    typer.echo("[korgi] === Stage 2: スピーチ ===")
-    speech_plain = draft.generate(resume_md, paper_md, char, lang, minutes)  # type: ignore[arg-type]
-    if not skip_factcheck:
-        speech_plain, fc_flags = speech_fc.annotate_citations(speech_plain, paper_md)
-        (run / "speech.flags.json").write_text(speech_fc.dump_flags(fc_flags), encoding="utf-8")
-        typer.echo(f"[korgi] fact-check flags={len(fc_flags)}")
-    tagged = tags.inject(speech_plain, char)
-    speech_path = run / "speech.md"
-    speech_path.write_text(tagged, encoding="utf-8")
-    typer.echo(f"[korgi] speech.md  ({len(tagged):,} chars)")
+    typer.echo("[korgi] 2f: generating Marp slides…")
+    slides_markdown = slides_gen.generate(cued, resume_text, lang)  # type: ignore[arg-type]
+    slides_dir = out / "slides"
+    slides_dir.mkdir(parents=True, exist_ok=True)
+    slides_md_path = slides_dir / "slides.md"
+    slides_md_path.write_text(slides_markdown, encoding="utf-8")
+    typer.echo(f"[korgi]   slides.md  ({len(slides_markdown):,} chars)")
 
-    # TTS
-    typer.echo(f"[korgi] === Stage 2d: TTS ({provider}) ===")
-    adapter = registry.get(provider)
-    audio_dir = run / "audio" / provider
-    resolved_voice = voice or adapter.default_voices.get(lang, "")
-    result = adapter.synth(tagged, resolved_voice, lang, audio_dir)  # type: ignore[arg-type]
-    typer.echo(f"[korgi] audio: {result.audio_path}  ({result.duration_ms / 1000:.1f}s)")
+    rendered = slides_render.render(slides_md_path)
+    if rendered:
+        typer.echo(f"[korgi]   slides.html  ({rendered})")
+    else:
+        typer.echo("[korgi]   (marp-cli not found — frontend will render client-side)")
+
+
+@app.command()
+def serve(
+    run_dir: Annotated[Optional[Path], typer.Argument(
+        exists=True, file_okay=False, readable=True,
+        help="Pre-loaded run dir. Omit to start empty — the web UI can upload a PDF and drive the pipeline.",
+    )] = None,
+    port: Annotated[int, typer.Option(help="HTTP port")] = 8000,
+    host: Annotated[str, typer.Option(help="Host interface")] = "127.0.0.1",
+    character: Annotated[str, typer.Option(help="Override character (default: match lang)")] = "",
+    build: Annotated[bool, typer.Option("--build/--no-build", help="Run `npm install && npm run build` in web/")] = False,
+) -> None:
+    """Stage 3: serve the Live2D frontend over HTTP, optionally pre-loaded with a run."""
+    from .web import server
+
+    if build:
+        import subprocess
+        web_dir = Path(__file__).parent.parent / "web"
+        typer.echo(f"[korgi] building web bundle at {web_dir} …")
+        subprocess.run(["npm", "install"], cwd=web_dir, check=True)
+        subprocess.run(["npm", "run", "build"], cwd=web_dir, check=True)
+
+    where = run_dir if run_dir else "(empty — upload a PDF via the web UI)"
+    typer.echo(f"[korgi] serving {where} on http://{host}:{port}")
+    server.serve(run_dir, port=port, host=host, character=character or None)
 
 
 # ──────────────────────────────────────────────

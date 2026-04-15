@@ -87,3 +87,66 @@ def generate(
         messages=[{"role": "user", "content": user_blocks}],
     )
     return "".join(b.text for b in resp.content if b.type == "text").strip()
+
+
+def expand(
+    prev_speech: str,
+    resume_md: str,
+    paper_md: str,
+    character: CharacterProfile,
+    lang: Lang,
+    factor: float,
+    cfg: Config | None = None,
+) -> str:
+    """Re-prompt Stage 2 to produce a *longer* draft.
+
+    Used by the pipeline when the synthesized audio falls short of the
+    requested minutes. The previous draft is passed in as a reference so
+    the expansion stays on-topic.
+    """
+    cfg = cfg or load()
+    factor = max(1.1, float(factor))
+
+    if lang == "ja":
+        prev_units = len(prev_speech)
+        target = int(prev_units * factor)
+        length_tag = f"<expand_to_chars>{target}</expand_to_chars>"
+    else:
+        prev_units = len(prev_speech.split())
+        target = int(prev_units * factor)
+        length_tag = f"<expand_to_words>{target}</expand_to_words>"
+
+    user_blocks = [
+        {
+            "type": "text",
+            "text": f"<paper>\n{paper_md}\n</paper>",
+            "cache_control": {"type": "ephemeral"},
+        },
+        {
+            "type": "text",
+            "text": f"<resume>\n{resume_md}\n</resume>",
+            "cache_control": {"type": "ephemeral"},
+        },
+        {
+            "type": "text",
+            "text": (
+                f"<character>\n{_char_block(character)}\n</character>\n"
+                f"<previous_draft>\n{prev_speech}\n</previous_draft>\n"
+                f"{length_tag}\n\n"
+                "The previous draft is too short. Rewrite the lecture to reach "
+                "the expanded length target. Preserve the overall structure, "
+                "section order, and claims — add depth via worked examples, "
+                "intuition, restatements, and smoother transitions. Do not add "
+                "new citations or facts not present in the paper or resume. "
+                "Return only the new speech body (no preamble)."
+            ),
+        },
+    ]
+
+    resp = client(cfg).messages.create(
+        model=cfg.generation_model,
+        max_tokens=16000,
+        system=_system(lang),
+        messages=[{"role": "user", "content": user_blocks}],
+    )
+    return "".join(b.text for b in resp.content if b.type == "text").strip()

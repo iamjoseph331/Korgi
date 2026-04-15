@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.log
+
+# Cubism Editor source files — only the runtime/ subtree is used at runtime.
+public/live2d/**/*.can3
+public/live2d/**/*.cmo3

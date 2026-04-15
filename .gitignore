@@ -1,3 +1,9 @@
+out/
+web/dist/
+web/node_modules/
+Examples/
+uploads/
+web/public/live2d/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

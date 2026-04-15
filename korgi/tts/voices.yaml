@@ -4,12 +4,20 @@
 
 elevenlabs:
   ja: "lhTvHflPVOqgSWyuWQry"   # Hina
-  en: "21m00Tcm4TlvDq8ikWAM"   # Rachel (placeholder)
+  en: "MEJe6hPrI48Kt2lFuVe3"   # Yumi
 
 moss:
-  ja: ""   # Path to a reference .wav for voice cloning, or "" for default voice
+  ja: "/Users/macbook/Code/Sideprojects/Korgi/out/51511123f3_problemsolving_and_intelligence/audio/elevenlabs/full.wav"   # Path to a reference .wav for voice cloning, or "" for default voice
   en: ""
 
 stub:
-  ja: ""
+  ja: "/Users/macbook/Code/Sideprojects/Korgi/out/51511123f3_problemsolving_and_intelligence/audio/elevenlabs/full.wav"
+  en: ""
+
+voxcpm:
+  ja: "/Users/macbook/Code/Sideprojects/Korgi/out/51511123f3_problemsolving_and_intelligence/audio/elevenlabs/full.wav"   # path to reference .wav for voice cloning; empty = voice-design mode
+  en: ""
+
+irodori:
+  ja: "/Users/macbook/Code/Sideprojects/Korgi/out/51511123f3_problemsolving_and_intelligence/audio/elevenlabs/full.wav"   # path to reference .wav for voice cloning; empty = no-ref (random speaker)
   en: ""

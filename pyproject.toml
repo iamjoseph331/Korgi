@@ -18,14 +18,23 @@ dependencies = [
 
 [project.optional-dependencies]
 elevenlabs = ["elevenlabs>=1.0"]
-moss = ["moss-tts-nano"]
-# voxcpm and irodori are experimental local providers; they're not on PyPI
-# at the time of writing, so we don't list them as pip extras. Install them
-# directly from source:
-#   pip install "git+https://github.com/OpenBMB/VoxCPM.git" numpy
-#   pip install "git+https://github.com/Aratako/Irodori-TTS.git" numpy
+voxcpm = ["voxcpm"]
+irodori = ["irodori-tts"]
 web = ["fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9"]
 dev = ["pytest>=8", "pytest-mock>=3"]
+moss = ["moss-tts-nano"]
+
+[tool.uv]
+# moss, voxcpm, and irodori each pin different torch versions and are never
+# installed together — install one at a time with `uv sync --extra <name>`.
+conflicts = [
+  [{ extra = "moss" }, { extra = "irodori" }, { extra = "voxcpm" }],
+]
+
+[tool.uv.sources]
+voxcpm = { path = "../TTS/VoxCPM", editable = true }
+irodori-tts = { path = "../TTS/Irodori-TTS", editable = true }
+moss-tts-nano = { path = "../TTS/MOSS-TTS-Nano", editable = true }
 
 [project.scripts]
 korgi = "korgi.cli:app"

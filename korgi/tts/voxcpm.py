@@ -1,18 +1,19 @@
 """VoxCPM adapter — OpenBMB/VoxCPM (https://github.com/OpenBMB/VoxCPM).
 
-Install:
-    pip install "git+https://github.com/OpenBMB/VoxCPM.git" numpy
+Install (from local clone at ../TTS/VoxCPM):
+    uv sync --extra voxcpm
 
-VoxCPM is a local/open-source TTS from OpenBMB. It does not support emotion
+VoxCPM2 is a local/open-source multilingual TTS. It does not support emotion
 tags — they are stripped before synthesis. Optional voice cloning via a
 reference .wav path (same convention as moss-tts-nano's `voice` field).
 
-This adapter targets the stable `VoxCPM` Python API:
+This adapter targets the VoxCPM2 Python API:
 
     from voxcpm import VoxCPM
-    model = VoxCPM.from_pretrained("openbmb/VoxCPM-0.5B")
-    wav = model.generate(text=..., prompt_wav_path=... or None)
-    #     wav: numpy.ndarray, float32, 24kHz mono (or 16kHz depending on ckpt)
+    model = VoxCPM.from_pretrained("openbmb/VoxCPM2", load_denoiser=False)
+    wav = model.generate(text=..., reference_wav_path=... or None,
+                         cfg_value=2.0, inference_timesteps=10)
+    #     wav: numpy.ndarray, float32, model.tts_model.sample_rate (48 kHz for VoxCPM2)
 
 If the upstream API diverges, adjust `_call_model` below — the rest of the
 adapter (splitting, timing, cue estimation, WAV writing) is provider-agnostic.
@@ -31,8 +32,7 @@ from .base import Lang, SynthResult, TimingEntry
 from .registry import register
 
 _SENT_SPLIT = re.compile(r"(?<=[。．.!?！？])\s*")
-_DEFAULT_CKPT = "openbmb/VoxCPM-0.5B"
-_SAMPLE_RATE = 16000  # VoxCPM default; override via env if your ckpt differs
+_DEFAULT_CKPT = "openbmb/VoxCPM2"
 
 
 def _strip_tags(text: str) -> str:
@@ -42,9 +42,9 @@ def _strip_tags(text: str) -> str:
 def _call_model(model, text: str, prompt_wav: str | None):
     """One text → one waveform (numpy float32). Kept isolated so the rest of
     the adapter doesn't care about upstream API drift."""
-    kwargs: dict = {"text": text}
+    kwargs: dict = {"text": text, "cfg_value": 2.0, "inference_timesteps": 10}
     if prompt_wav:
-        kwargs["prompt_wav_path"] = prompt_wav
+        kwargs["reference_wav_path"] = prompt_wav
     return model.generate(**kwargs)
 
 
@@ -73,8 +73,7 @@ class VoxCPMAdapter:
             from voxcpm import VoxCPM  # type: ignore
         except ImportError as e:
             raise RuntimeError(
-                "voxcpm not installed. Install from source: "
-                "pip install 'git+https://github.com/OpenBMB/VoxCPM.git' numpy"
+                "voxcpm not installed. Run: uv sync --extra voxcpm"
             ) from e
 
         cued_speech = text_with_tags
@@ -87,7 +86,8 @@ class VoxCPMAdapter:
         timing_path = out_dir / "timing.json"
         slides_json_path = out_dir / "slides.json"
 
-        model = VoxCPM.from_pretrained(_DEFAULT_CKPT)
+        model = VoxCPM.from_pretrained(_DEFAULT_CKPT, load_denoiser=False)
+        sample_rate: int = model.tts_model.sample_rate
 
         import numpy as np
         segs: list[bytes] = []
@@ -98,11 +98,13 @@ class VoxCPMAdapter:
             wav = _call_model(model, sent, voice or None)
             if wav is None:
                 continue
-            # Normalise to int16 PCM little-endian.
             arr = np.asarray(wav, dtype="float32")
+            # Downmix stereo (2, T) → mono (T,) if needed
+            if arr.ndim == 2:
+                arr = arr.mean(axis=0)
             arr = np.clip(arr, -1.0, 1.0)
             pcm = (arr * 32767.0).astype("<i2").tobytes()
-            duration_ms = int(len(pcm) / 2 / _SAMPLE_RATE * 1000)
+            duration_ms = int(len(pcm) / 2 / sample_rate * 1000)
             entries.append(
                 TimingEntry(start_ms=cursor_ms, end_ms=cursor_ms + duration_ms, text=sent, tag="serious")
             )
@@ -113,7 +115,7 @@ class VoxCPMAdapter:
         with wave.open(str(audio_path), "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
-            wf.setframerate(_SAMPLE_RATE)
+            wf.setframerate(sample_rate)
             wf.writeframes(combined)
 
         timing_path.write_text(

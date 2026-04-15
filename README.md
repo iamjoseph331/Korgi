@@ -17,13 +17,17 @@ PDF -> paper.md -> resume.md -> speech.md -> audio + slides -> Live2D web viewer
   <tr>
     <td width="50%">
       <strong>Demo 1: Pipeline (web browser) + Elevenlabs API</strong><br />
-      <video src="./Demo/Korgi-demo1.mp4" controls muted playsinline width="100%"></video><br />
-      <a href="./Demo/Korgi-demo1.mp4">Open Demo 1</a>
+      <a href="https://youtu.be/vfEdPrHuV-Q">
+        <img src="https://img.youtube.com/vi/vfEdPrHuV-Q/hqdefault.jpg" alt="Demo 1 thumbnail" width="100%" />
+      </a><br />
+      <a href="https://youtu.be/vfEdPrHuV-Q">Watch Demo 1 on YouTube</a>
     </td>
     <td width="50%">
       <strong>Demo 2: Irodori voice profiles</strong><br />
-      <video src="./Demo/Korgi-demo2.mp4" controls muted playsinline width="100%"></video><br />
-      <a href="./Demo/Korgi-demo2.mp4">Open Demo 2</a>
+      <a href="https://youtu.be/xvTDs6Nhdrw">
+        <img src="https://img.youtube.com/vi/xvTDs6Nhdrw/hqdefault.jpg" alt="Demo 2 thumbnail" width="100%" />
+      </a><br />
+      <a href="https://youtu.be/xvTDs6Nhdrw">Watch Demo 2 on YouTube</a>
     </td>
   </tr>
 </table>
@@ -37,23 +41,6 @@ PDF -> paper.md -> resume.md -> speech.md -> audio + slides -> Live2D web viewer
 - Generates slide cues and Marp slide markdown
 - Synthesizes audio with multiple TTS backends
 - Serves the final result in a FastAPI-based web viewer with a Live2D character
-
-## Demo
-
-<table>
-  <tr>
-    <td width="50%">
-      <strong>Demo 1</strong><br />
-      <video src="./Demo/Korgi-demo1.mp4" controls muted playsinline width="100%"></video><br />
-      <a href="./Demo/Korgi-demo1.mp4">Open Demo 1</a>
-    </td>
-    <td width="50%">
-      <strong>Demo 2</strong><br />
-      <video src="./Demo/Korgi-demo2.mp4" controls muted playsinline width="100%"></video><br />
-      <a href="./Demo/Korgi-demo2.mp4">Open Demo 2</a>
-    </td>
-  </tr>
-</table>
 
 ## Pipeline
 

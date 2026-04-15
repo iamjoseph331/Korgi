@@ -19,6 +19,11 @@ dependencies = [
 [project.optional-dependencies]
 elevenlabs = ["elevenlabs>=1.0"]
 moss = ["moss-tts-nano"]
+# voxcpm and irodori are experimental local providers; they're not on PyPI
+# at the time of writing, so we don't list them as pip extras. Install them
+# directly from source:
+#   pip install "git+https://github.com/OpenBMB/VoxCPM.git" numpy
+#   pip install "git+https://github.com/Aratako/Irodori-TTS.git" numpy
 web = ["fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9"]
 dev = ["pytest>=8", "pytest-mock>=3"]
 

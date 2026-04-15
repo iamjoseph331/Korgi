@@ -40,6 +40,11 @@ export async function mountSetup(onSubmitted: (runId: string) => void): Promise<
   const goBtn = document.getElementById("go") as HTMLButtonElement;
   const status = document.getElementById("setup-status") as HTMLSpanElement;
   const errBox = document.getElementById("setup-err") as HTMLDivElement;
+  const pitchInput = document.getElementById("pitch") as HTMLInputElement | null;
+  const pitchVal = document.getElementById("pitch-val") as HTMLSpanElement | null;
+  const speedInput = document.getElementById("speed") as HTMLInputElement | null;
+  const speedVal = document.getElementById("speed-val") as HTMLSpanElement | null;
+  const charYaml = document.getElementById("character-yaml") as HTMLTextAreaElement | null;
 
   let picked: File | null = null;
 
@@ -55,8 +60,45 @@ export async function mountSetup(onSubmitted: (runId: string) => void): Promise<
   langSel.addEventListener("change", () => {
     const l = langSel.value;
     const pref = `default_${l}`;
-    if (characters.includes(pref)) charSel.value = pref;
+    if (characters.includes(pref)) {
+      charSel.value = pref;
+      void loadCharacterYaml(pref);
+    }
   });
+
+  // ── character YAML editor ─────────────────────────────
+  let charYamlOriginal = "";
+  async function loadCharacterYaml(name: string): Promise<void> {
+    if (!charYaml) return;
+    try {
+      const res = await fetch(`/api/characters/${encodeURIComponent(name)}`);
+      if (!res.ok) { charYaml.value = ""; charYamlOriginal = ""; return; }
+      const text = await res.text();
+      charYaml.value = text;
+      charYamlOriginal = text;
+    } catch {
+      charYaml.value = ""; charYamlOriginal = "";
+    }
+  }
+  charSel.addEventListener("change", () => { void loadCharacterYaml(charSel.value); });
+  await loadCharacterYaml(charSel.value);
+
+  // ── pitch / speed sliders ─────────────────────────────
+  if (pitchInput && pitchVal) {
+    const updatePitch = () => {
+      const v = parseInt(pitchInput.value, 10);
+      pitchVal.textContent = v === 0 ? "0" : (v > 0 ? `+${v}` : `${v}`);
+    };
+    pitchInput.addEventListener("input", updatePitch);
+    updatePitch();
+  }
+  if (speedInput && speedVal) {
+    const updateSpeed = () => {
+      speedVal.textContent = `${parseFloat(speedInput.value).toFixed(2)}×`;
+    };
+    speedInput.addEventListener("input", updateSpeed);
+    updateSpeed();
+  }
 
   function renderPicked(): void {
     drop.classList.remove("drag");
@@ -117,6 +159,11 @@ export async function mountSetup(onSubmitted: (runId: string) => void): Promise<
       fd.append("voice", voiceInput.value.trim());
       fd.append("skip_factcheck", String(skipFcCb.checked));
       fd.append("slides", String(slidesCb.checked));
+      if (pitchInput) fd.append("pitch", pitchInput.value);
+      if (speedInput) fd.append("speed", speedInput.value);
+      if (charYaml && charYaml.value.trim() && charYaml.value !== charYamlOriginal) {
+        fd.append("character_yaml", charYaml.value);
+      }
 
       const res = await fetch("/api/run", { method: "POST", body: fd });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);

@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..speech.schema import strip_slide_tags
+from ..speech.schema import strip_slide_tags, strip_supplement_tags
 from .base import Lang, SynthResult, TimingEntry
 from .registry import register
 from .tag_translate import to_stub
@@ -39,10 +39,18 @@ class StubAdapter:
         "en": "",
     }
 
-    def synth(self, text_with_tags: str, voice: str, lang: Lang, out_dir: Path) -> SynthResult:
+    def synth(
+        self,
+        text_with_tags: str,
+        voice: str,
+        lang: Lang,
+        out_dir: Path,
+        voice_settings: dict | None = None,
+    ) -> SynthResult:
+        _ = voice_settings
         # Strip slide cues before synth; a real adapter should also call
         # estimate_cues() + write_slides_json() after it knows duration_ms.
-        translated = strip_slide_tags(to_stub(text_with_tags))
+        translated = strip_supplement_tags(strip_slide_tags(to_stub(text_with_tags)))
 
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)

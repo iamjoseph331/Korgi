@@ -32,3 +32,7 @@ def available() -> list[str]:
 def _ensure_defaults_loaded() -> None:
     # Import adapter modules so their @register decorators run.
     from . import elevenlabs_v3, moss_tts_nano, stub  # noqa: F401
+    # Local/experimental adapters — register them unconditionally so they
+    # show up in /api/providers; the SDK ImportError is raised only at
+    # synth time, gated behind the matching pyproject extra.
+    from . import irodori, voxcpm  # noqa: F401

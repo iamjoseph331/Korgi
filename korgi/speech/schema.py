@@ -28,7 +28,21 @@ EN_WORDS_PER_MIN: int = 170
 SLIDE_TAG = "[slide:next]"
 SLIDE_TAG_RE = re.compile(r"\[slide:next\]")
 
+# Supplement section tags.
+# The speech-draft LLM wraps teacher-added commentary (context not in the paper)
+# in <supplement>...</supplement> tags so:
+#   1. TTS adapters strip the *tags* (not the content) — the text inside is still read aloud.
+#   2. The slides generator uses the tags to style those bullets distinctly (italic/muted).
+# The verbal preface ("え…これは私からの補充ですが") is written INSIDE the tags
+# so it is voiced naturally.
+SUPPLEMENT_TAG_RE = re.compile(r"</?supplement>", re.IGNORECASE)
+
 
 def strip_slide_tags(text: str) -> str:
     """Remove all [slide:next] cue markers from `text`."""
     return SLIDE_TAG_RE.sub("", text)
+
+
+def strip_supplement_tags(text: str) -> str:
+    """Remove <supplement> / </supplement> wrapper tags (but NOT their content)."""
+    return SUPPLEMENT_TAG_RE.sub("", text)

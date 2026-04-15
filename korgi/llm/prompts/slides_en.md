@@ -9,6 +9,17 @@ Marp-flavored Markdown. Slides are separated by `---`. Prepend the frontmatter:
 marp: true
 paginate: true
 theme: default
+style: |
+  .supplement {
+    color: #6b7280;
+    font-style: italic;
+    font-size: 0.92em;
+  }
+  .supplement::before {
+    content: "💬 ";
+    font-style: normal;
+    font-size: 0.85em;
+  }
 ---
 ```
 
@@ -24,6 +35,15 @@ The first slide is the title slide (H1). Each subsequent slide corresponds to th
 6. **Figures**: only include `![figure](./figures/N.png)` placeholders when the resume or speech explicitly references a figure from the paper. Otherwise, no images.
 7. **Do NOT carry over emotion tags** (`[happy]`, `[thinking]`, etc.) — slides are visual; those tags belong only to the audio path.
 8. Do not wrap the entire Marp source in a code fence. Emit it as raw markdown.
+9. **Distinguish supplement content**: text inside `<supplement>...</supplement>` tags in the speech (the professor's additions, not from the paper) must be rendered as bullet items wrapped in `<span class="supplement">...</span>`. This visually separates paper facts from instructor commentary.
+
+## Supplement bullet example
+
+```
+- A key finding from the paper
+- <span class="supplement">As an aside — this approach is often compared to BERT in practice (instructor note)</span>
+- Another paper fact
+```
 
 ## Output
 

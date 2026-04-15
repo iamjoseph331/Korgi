@@ -6,7 +6,7 @@ from dataclasses import dataclass
 class Config:
     anthropic_api_key: str
     elevenlabs_api_key: str | None
-    generation_model: str = "claude-sonnet-4-6"
+    generation_model: str = "claude-opus-4-6"
     factcheck_model: str = "claude-haiku-4-5"
     web_search_cap: int = 8
 

@@ -139,13 +139,67 @@ export async function bootPlayer(): Promise<void> {
     }
 
     setStep(status, "starting timeline");
-    const timeline = new Timeline(entries, slideCues);
+    let timeline = new Timeline(entries, slideCues);
     timeline.onTagChange((tag) => { void applyTag(tag); });
     timeline.onSlideAdvance((idx) => { panel.show(idx); });
 
     audio.addEventListener("timeupdate", () => {
       timeline.tick(Math.round(audio.currentTime * 1000));
     });
+
+    // ── TTS provider switcher ───────────────────────────
+    const ttsSel = document.getElementById("tts-provider") as HTMLSelectElement | null;
+    const ttsStatus = document.getElementById("tts-status") as HTMLSpanElement | null;
+    if (ttsSel) {
+      const providers = info.available_providers ?? [];
+      ttsSel.innerHTML = "";
+      for (const p of providers) {
+        const opt = document.createElement("option");
+        opt.value = p;
+        opt.textContent = p;
+        ttsSel.appendChild(opt);
+      }
+      if (info.current_provider && providers.includes(info.current_provider)) {
+        ttsSel.value = info.current_provider;
+      }
+      ttsSel.addEventListener("change", async () => {
+        const provider = ttsSel.value;
+        if (ttsStatus) ttsStatus.textContent = "生成中…";
+        ttsSel.disabled = true;
+        try {
+          const fd = new FormData();
+          fd.append("provider", provider);
+          const res = await fetch("/api/tts/switch", { method: "POST", body: fd });
+          if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+          const body = (await res.json()) as {
+            audio_url: string; timing_url: string; slides_url: string | null; cached: boolean;
+          };
+          const wasPlaying = !audio.paused;
+          const t = audio.currentTime;
+          audio.src = body.audio_url;
+          audio.currentTime = t;
+          if (wasPlaying) void audio.play().catch(() => {});
+
+          const [newEntries, newCues] = await Promise.all([
+            fetchJson<TimingEntry[]>(body.timing_url),
+            body.slides_url
+              ? fetchJson<SlideCue[]>(body.slides_url)
+              : Promise.resolve(slideCues),
+          ]);
+          timeline = new Timeline(newEntries ?? [], newCues ?? slideCues);
+          timeline.onTagChange((tag) => { void applyTag(tag); });
+          timeline.onSlideAdvance((idx) => { panel.show(idx); });
+
+          if (ttsStatus) ttsStatus.textContent = body.cached ? "cached" : "ready";
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error("tts switch failed:", err);
+          if (ttsStatus) ttsStatus.textContent = "error";
+        } finally {
+          ttsSel.disabled = false;
+        }
+      });
+    }
 
     setStep(status, "ready");
     booted = true;

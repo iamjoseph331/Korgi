@@ -16,7 +16,7 @@ import wave
 from pathlib import Path
 
 from ..slides.timing import estimate_cues, write_slides_json
-from ..speech.schema import SLIDE_TAG_RE, strip_slide_tags
+from ..speech.schema import SLIDE_TAG_RE, strip_slide_tags, strip_supplement_tags
 from .base import Lang, SynthResult, TimingEntry
 from .registry import register
 from .tag_translate import to_moss
@@ -34,7 +34,16 @@ class MOSSTTSNanoAdapter:
         "en": "",
     }
 
-    def synth(self, text_with_tags: str, voice: str, lang: Lang, out_dir: Path) -> SynthResult:
+    def synth(
+        self,
+        text_with_tags: str,
+        voice: str,
+        lang: Lang,
+        out_dir: Path,
+        voice_settings: dict | None = None,
+    ) -> SynthResult:
+        # voice_settings (pitch/speed) are not supported by moss-tts-nano; ignored.
+        _ = voice_settings
         try:
             from moss_tts_nano import MossTTSNano
         except ImportError as e:
@@ -43,7 +52,7 @@ class MOSSTTSNanoAdapter:
             ) from e
 
         cued_speech = text_with_tags
-        plain = strip_slide_tags(to_moss(text_with_tags))
+        plain = strip_supplement_tags(strip_slide_tags(to_moss(text_with_tags)))
         sentences = [s.strip() for s in _SENT_SPLIT.split(plain) if s.strip()]
 
         out_dir = Path(out_dir)

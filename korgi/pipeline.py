@@ -151,7 +151,10 @@ def run_pipeline(
             slides_render.render(slides_md_path)
         speech_path.write_text(final_speech_v2, encoding="utf-8")
         on_event("log", f"speech.md expanded ({len(final_speech_v2):,} chars)")
-        result = adapter.synth(final_speech_v2, resolved_voice, lang, audio_dir)  # type: ignore[arg-type]
+        result = adapter.synth(
+            final_speech_v2, resolved_voice, lang, audio_dir,  # type: ignore[arg-type]
+            voice_settings=voice_settings,
+        )
         on_event(
             "log",
             f"audio (retry): {result.audio_path}  ({result.duration_ms / 1000:.1f}s)",

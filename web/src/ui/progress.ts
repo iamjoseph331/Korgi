@@ -9,11 +9,11 @@ interface ServerEvent {
   payload?: Record<string, unknown>;
 }
 
-const STAGES: Array<{ id: string; label: string; gif: number }> = [
-  { id: "resume",  label: "Stage 1 — レジュメ生成",           gif: 1 },
-  { id: "speech",  label: "Stage 2 — スピーチ原稿 + 感情タグ", gif: 2 },
-  { id: "slides",  label: "Stage 4 — スライド生成",           gif: 3 },
-  { id: "tts",     label: "TTS — 音声合成",                   gif: 4 },
+const STAGES: Array<{ id: string; label: string }> = [
+  { id: "resume",  label: "Stage 1 — レジュメ生成" },
+  { id: "speech",  label: "Stage 2 — スピーチ原稿 + 感情タグ" },
+  { id: "slides",  label: "Stage 4 — スライド生成" },
+  { id: "tts",     label: "TTS — 音声合成" },
 ];
 
 function now(): string {
@@ -28,10 +28,28 @@ export function mountProgress(
   const runIdEl = document.getElementById("progress-runid") as HTMLParagraphElement;
   const stagesEl = document.getElementById("stages") as HTMLDivElement;
   const logEl = document.getElementById("log") as HTMLDivElement;
+  const progressSection = document.getElementById("view-progress") as HTMLElement;
 
   runIdEl.textContent = `run: ${runId}`;
   stagesEl.innerHTML = "";
   logEl.innerHTML = "";
+
+  let shell = progressSection.querySelector(".progress-shell") as HTMLDivElement | null;
+  let eyecatch = progressSection.querySelector(".progress-eyecatch") as HTMLDivElement | null;
+  if (!shell) {
+    shell = document.createElement("div");
+    shell.className = "progress-shell";
+    stagesEl.parentElement?.insertBefore(shell, stagesEl);
+    shell.appendChild(stagesEl);
+  }
+  if (!eyecatch) {
+    eyecatch = document.createElement("div");
+    eyecatch.className = "progress-eyecatch";
+    eyecatch.innerHTML = `
+      <img class="progress-eyecatch-img" src="/assets/loading/Ponchon.png" alt="Loading character" />
+    `;
+    shell.appendChild(eyecatch);
+  }
 
   const stageNodes = new Map<string, HTMLDivElement>();
   for (const s of STAGES) {
@@ -54,22 +72,6 @@ export function mountProgress(
     logEl.scrollTop = logEl.scrollHeight;
   }
 
-  function removeGif(node: HTMLDivElement): void {
-    node.querySelector(".stage-gif")?.remove();
-  }
-
-  function addGif(node: HTMLDivElement, stageId: string): void {
-    if (node.querySelector(".stage-gif")) return;
-    const stage = STAGES.find((s) => s.id === stageId);
-    const n = stage?.gif ?? 0;
-    const img = document.createElement("img");
-    img.className = "stage-gif";
-    img.alt = "";
-    img.src = n ? `/assets/loading/stage${n}.gif` : "/assets/loading/default.gif";
-    img.addEventListener("error", () => { img.src = "/assets/loading/default.gif"; });
-    node.insertBefore(img, node.firstChild);
-  }
-
   let activeStage: string | null = null;
   function markStage(id: string, state: "active" | "done" | "err"): void {
     const node = stageNodes.get(id);
@@ -80,26 +82,22 @@ export function mountProgress(
         if (prev) {
           prev.classList.remove("active");
           prev.classList.add("done");
-          removeGif(prev);
           const when = prev.querySelector(".when");
           if (when && !when.textContent) when.textContent = now();
         }
       }
       node.classList.remove("done", "err");
       node.classList.add("active");
-      addGif(node, id);
       activeStage = id;
     } else if (state === "done") {
       node.classList.remove("active", "err");
       node.classList.add("done");
-      removeGif(node);
       const when = node.querySelector(".when");
       if (when) when.textContent = now();
       if (activeStage === id) activeStage = null;
     } else {
       node.classList.remove("active", "done");
       node.classList.add("err");
-      removeGif(node);
     }
   }
 

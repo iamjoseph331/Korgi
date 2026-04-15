@@ -9,6 +9,12 @@ PDF ──► resume.md ──► speech.md ──► audio + slides ──► L
 
 ---
 
+## Demo
+
+<!-- Populate this section with a video or screenshots. -->
+
+---
+
 ## Install
 
 ```bash
@@ -75,7 +81,7 @@ out/Mindware1/
 │   └── slides.md       # Marp slides
 └── audio/
     └── elevenlabs/
-        ├── speech.wav
+        ├── full.wav
         └── timing.json
 ```
 
@@ -112,9 +118,6 @@ korgi tts out/Mindware1/speech.md --provider elevenlabs
 
 # MOSS-TTS-Nano (local, CPU)
 korgi tts out/Mindware1/speech.md --provider moss
-
-# Stub (silent, for testing)
-korgi tts out/Mindware1/speech.md --provider stub
 
 # Custom voice
 korgi tts out/Mindware1/speech.md --provider elevenlabs --voice <voice-id>
@@ -167,15 +170,97 @@ korgi pipeline paper.pdf --character ./my_char.yaml
 
 A character YAML controls persona, speech style, emotion tag biases, and the Live2D model path. Copy `korgi/characters/default_ja.yaml` as a starting point.
 
+You can also edit the character directly in the web UI — open the **キャラクターを編集** panel on the setup page. Changes apply to that run only and do not overwrite the original file.
+
+---
+
+## Adding your own Live2D model
+
+Korgi works with any Cubism 4 model (`.model3.json` + assets). The steps below assume the bundled web viewer.
+
+### 1. Copy the model files
+
+Place the model directory under `web/public/live2d/` so Vite serves it in development and includes it in the production build:
+
+```
+web/public/live2d/
+└── my_model/
+    └── runtime/
+        ├── my_model.model3.json
+        ├── my_model.moc3
+        ├── textures/
+        └── motions/
+```
+
+### 2. Create a character YAML
+
+Copy an existing character as a template:
+
+```bash
+cp korgi/characters/default_ja.yaml korgi/characters/my_char.yaml
+```
+
+Then edit the `live2d` section to point to your model:
+
+```yaml
+live2d:
+  model_path: /live2d/my_model/runtime/my_model.model3.json
+  scale: 0.25          # start here; increase if the model appears too small
+  x_offset: 0          # pixels right (negative = left)
+  y_offset: 0          # pixels down  (negative = up)
+  lip_sync:
+    sensitivity: 2.0   # higher = more mouth movement for quiet audio
+    smoothing: 0.15    # 0 = instant, 1 = very slow
+    min_threshold: 0.01
+    use_mouth_form: true
+```
+
+### 3. Map emotion tags to your model's motions / expressions
+
+Korgi uses six canonical emotion tags: `happy`, `sad`, `angry`, `thinking`, `hesitate`, `serious`. These need to map to motion groups or expression names defined in your `.model3.json`.
+
+Open the `.model3.json` and look for keys under `"Motions"` or `"Expressions"`. Then set `live2d_expression_map` in your character YAML:
+
+```yaml
+live2d_expression_map:
+  happy:    Tap          # motion group name, or an expression name
+  thinking: Idle
+  hesitate: FlickDown
+  sad:      FlickDown
+  angry:    FlickUp
+  serious:  Idle
+```
+
+If your model has named `.exp3.json` expressions, use those names instead of motion group names — the frontend driver tries expressions first, then falls back to motion groups.
+
+### 4. Adjust the zoom origin (optional)
+
+The zoom slider on the player page zooms in toward the upper body. If your model's face lands off-center at high zoom, tweak `y_offset` in the YAML or use the web UI's **キャラクターを編集** panel to try values live.
+
+### 5. Use the character
+
+```bash
+korgi pipeline paper.pdf --character my_char
+korgi serve out/<run>
+```
+
+Or select it from the **キャラクター** dropdown on the web setup page.
+
 ---
 
 ## TTS providers
 
-| Provider | Flag | Notes |
-|----------|------|-------|
-| `elevenlabs` | `pip install 'korgi[elevenlabs]'` | Cloud, emotion tags, streaming |
-| `moss` | `pip install 'korgi[moss]'` | Local CPU, voice cloning via ref wav, tags stripped |
-| `stub` | built-in | Silent, writes placeholder files — useful for testing |
+| Provider       | Install                                                                | Notes                                                      |
+| -------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `elevenlabs` | `pip install 'korgi[elevenlabs]'`                                    | Cloud, emotion tags, streaming; supports `speed` setting |
+| `moss`       | `pip install 'korgi[moss]'`                                          | Local CPU, voice cloning via ref wav, tags stripped        |
+| `stub`       | built-in                                                               | Silent, writes placeholder files — useful for testing     |
+| `voxcpm`     | `pip install "git+https://github.com/OpenBMB/VoxCPM.git" numpy`      | Local, experimental; tags stripped                         |
+| `irodori`    | `pip install "git+https://github.com/Aratako/Irodori-TTS.git" numpy` | Local, Japanese-first, experimental; tags stripped         |
+
+**Pitch and speaking speed** can be set on the web setup page. Only ElevenLabs currently maps these to its API; other providers accept the settings but ignore them (a notice is shown in the UI).
+
+You can also switch providers in the **live player** without re-running the pipeline — the toolbar in the top-right corner of the stage re-synthesises on demand and caches the result for instant replay.
 
 ---
 

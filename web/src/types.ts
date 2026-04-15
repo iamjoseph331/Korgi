@@ -1,11 +1,14 @@
 export interface RunInfo {
   active?: boolean;
   slug?: string;
+  run_id?: string;
   lang?: "ja" | "en";
   character?: string;
   has_audio?: boolean;
   has_slides?: boolean;
   audio_url?: string | null;
+  available_providers?: string[];
+  current_provider?: string | null;
 }
 
 export interface LipSyncSettings {

@@ -36,4 +36,5 @@ class TTSAdapter(Protocol):
         voice: str,
         lang: Lang,
         out_dir: Path,
+        voice_settings: dict | None = None,
     ) -> SynthResult: ...

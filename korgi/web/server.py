@@ -31,7 +31,7 @@ from ..pipeline import run_pipeline
 WEB_ROOT = Path(__file__).parent.parent.parent / "web"
 DIST_DIR = WEB_ROOT / "dist"
 UPLOAD_DIR = Path("uploads")
-PROVIDER_PRIORITY = ("elevenlabs", "moss", "stub")
+PROVIDER_PRIORITY = ("elevenlabs", "moss", "stub", "voxcpm", "irodori")
 
 
 # ──────────────────────────────────────────────────────────
@@ -102,14 +102,34 @@ def _pick_audio_dir(run_dir: Path) -> Optional[Path]:
     audio_root = run_dir / "audio"
     if not audio_root.is_dir():
         return None
+    # If the user switched providers in-browser, a pointer file records
+    # the active cache-dir; prefer that.
+    pointer = audio_root / "current.json"
+    if pointer.exists():
+        try:
+            data = json.loads(pointer.read_text(encoding="utf-8"))
+            target = audio_root / data.get("dir", "")
+            if (target / "full.wav").exists():
+                return target
+        except Exception:  # noqa: BLE001
+            pass
     for provider in PROVIDER_PRIORITY:
         candidate = audio_root / provider
         if (candidate / "full.wav").exists():
             return candidate
     for sub in audio_root.iterdir():
-        if (sub / "full.wav").exists():
+        if sub.is_dir() and (sub / "full.wav").exists():
             return sub
     return None
+
+
+def _cache_dir_name(provider: str, voice: str, pitch: int, speed: float) -> str:
+    import hashlib
+    if not voice and pitch == 0 and abs(speed - 1.0) < 1e-6:
+        return provider
+    key = f"{voice}|{pitch}|{speed:.2f}"
+    h = hashlib.sha1(key.encode("utf-8")).hexdigest()[:8]
+    return f"{provider}__{h}"
 
 
 def _guess_lang(run_dir: Path) -> str:
@@ -161,15 +181,24 @@ def create_app(run_dir: Optional[Path] = None, character: Optional[str] = None):
         slides_json = run / "slides.json"
         if audio_dir is not None:
             slides_json = audio_dir / "slides.json"
+        # Surface the current provider (derived from the audio dir name) so
+        # the player toolbar can preselect it in the dropdown.
+        current_provider = None
+        if audio_dir is not None:
+            current_provider = audio_dir.name.split("__", 1)[0]
+        from ..tts import registry
         return JSONResponse(
             {
                 "active": True,
                 "slug": run.name,
+                "run_id": run.name,
                 "lang": profile.lang,
                 "character": profile.name,
                 "has_audio": audio_dir is not None,
                 "has_slides": slides_json.exists(),
                 "audio_url": "/run/audio/full.wav" if audio_dir else None,
+                "available_providers": registry.available(),
+                "current_provider": current_provider,
             }
         )
 
@@ -335,6 +364,62 @@ def create_app(run_dir: Optional[Path] = None, character: Optional[str] = None):
 
         threading.Thread(target=worker, daemon=True, name=f"korgi-run-{run_id}").start()
         return JSONResponse({"run_id": run_id})
+
+    @app.post("/api/tts/switch")
+    def api_tts_switch(
+        provider: str = Form(...),
+        voice: str = Form(""),
+        pitch: int = Form(0),
+        speed: float = Form(1.0),
+    ) -> JSONResponse:
+        """Re-run (or reuse cached) TTS for the current active run.
+
+        Cached by (provider, voice, pitch, speed) under audio/<provider[_hash]>/.
+        On success rewrites audio/current.json so /run/* routes serve the
+        newly selected audio across refreshes.
+        """
+        run = _require_run()
+        speech_path = run / "speech.md"
+        if not speech_path.exists():
+            raise HTTPException(409, "no speech.md in active run")
+        speech_text = speech_path.read_text(encoding="utf-8")
+
+        from ..tts import registry
+        try:
+            adapter = registry.get(provider)
+        except KeyError as e:
+            raise HTTPException(400, str(e)) from e
+
+        lang = _guess_lang(run)
+        resolved_voice = voice or adapter.default_voices.get(lang, "")
+        cache_name = _cache_dir_name(provider, resolved_voice, int(pitch), float(speed))
+        audio_dir = run / "audio" / cache_name
+        cached = (audio_dir / "full.wav").exists() and (audio_dir / "timing.json").exists()
+        if not cached:
+            vs = {"pitch": int(pitch), "speed": float(speed)}
+            try:
+                adapter.synth(speech_text, resolved_voice, lang, audio_dir, voice_settings=vs)  # type: ignore[arg-type]
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(500, f"{type(exc).__name__}: {exc}") from exc
+
+        # Atomic-ish: write a pointer file so read-side routes resolve here.
+        (run / "audio" / "current.json").write_text(
+            json.dumps({"dir": cache_name, "provider": provider}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        slides_json = audio_dir / "slides.json"
+        return JSONResponse(
+            {
+                "provider": provider,
+                "cached": cached,
+                "audio_url": f"/run/audio/full.wav?v={cache_name}",
+                "timing_url": f"/run/timing.json?v={cache_name}",
+                "slides_url": (
+                    f"/run/slides.json?v={cache_name}" if slides_json.exists() else None
+                ),
+            }
+        )
 
     @app.get("/api/runs/{run_id}/events")
     async def api_run_events(run_id: str):
